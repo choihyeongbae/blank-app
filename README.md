@@ -1,19 +1,94 @@
-# 🎈 Blank app template
+[README.md](https://github.com/user-attachments/files/23767535/README.md)
+# 어린이 교통사고 지역별 안전도 분석 Streamlit 앱
 
-A simple Streamlit app template for you to modify!
+## 📋 프로젝트 설명
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://blank-app-template.streamlit.app/)
+이 프로젝트는 2024년 전국 어린이 교통사고 데이터를 K-Means 클러스터링으로 분석하여 지역별 안전도를 시각화하는 웹 애플리케이션입니다.
 
-### How to run it on your own machine
+## 🚀 실행 방법
 
-1. Install the requirements
+### 1. 필요한 라이브러리 설치
 
-   ```
-   $ pip install -r requirements.txt
-   ```
+```bash
+pip install -r requirements.txt
+```
 
-2. Run the app
+### 2. CSV 데이터 파일 준비
 
-   ```
-   $ streamlit run streamlit_app.py
-   ```
+`Rates_by_Age_2024.csv` 파일을 프로젝트 폴더에 위치시키거나, 앱 실행 후 사이드바에서 파일을 업로드하세요.
+
+**필수 컬럼:**
+- `Location`: 지역명
+- `Injuries_1000`: 인구 1000명당 부상자수
+- `Accidents_1000`: 인구 1000명당 사고건수
+
+### 3. Streamlit 앱 실행
+
+```bash
+streamlit run traffic_accident_app.py
+```
+
+### 4. 웹 브라우저 접속
+
+자동으로 브라우저가 열리며, `http://localhost:8501`로 접속됩니다.
+
+## ✨ 주요 기능
+
+### 1. 지역 검색 기능
+- 사이드바에서 특정 지역을 선택하여 상세 정보 확인
+- 선택한 지역의 클러스터 분류, 부상자수, 사고건수 표시
+
+### 2. 시각화
+- **전국 클러스터 분포도**: K-Means 클러스터링 결과를 산점도로 표시
+- **지역별 비교 차트**: 같은 클러스터 내 다른 지역과의 비교
+- **클러스터별 통계**: 각 클러스터의 평균 지표
+
+### 3. 통계 정보
+- 전국 평균 대비 선택 지역의 상대적 위치
+- 클러스터별 평균 부상자수 및 사고건수
+- 전국 순위 정보
+
+### 4. 상위/하위 지역 리스트
+- 부상자수 기준 상위 10개 지역
+- 부상자수 기준 하위 10개 지역 (안전한 지역)
+
+## 📊 클러스터 분류
+
+- **군집 0 (🟢 안전 지역)**: 비교적 안전한 지역
+- **군집 1 (🟡 주의 지역)**: 중간 위험 지역
+- **군집 2 (🔴 위험 지역)**: 고위험 지역
+
+## 💡 사용 팁
+
+1. **전체 개요 보기**: 지역을 "전체"로 선택하면 전국 통계를 확인할 수 있습니다.
+2. **CSV 업로드**: 사이드바의 파일 업로드 기능을 사용하여 새로운 데이터를 분석할 수 있습니다.
+3. **시각화 확대**: 그래프를 클릭하여 확대하거나 상세히 볼 수 있습니다.
+
+## 📁 파일 구조
+
+```
+project/
+│
+├── traffic_accident_app.py    # Streamlit 앱 메인 파일
+├── requirements.txt            # 필요한 라이브러리 목록
+├── README.md                   # 사용 설명서
+└── Rates_by_Age_2024.csv      # 데이터 파일 (사용자 준비)
+```
+
+## 🔧 기술 스택
+
+- **Streamlit**: 웹 애플리케이션 프레임워크
+- **Pandas**: 데이터 처리
+- **Scikit-learn**: K-Means 클러스터링
+- **Matplotlib**: 데이터 시각화
+- **Koreanize-matplotlib**: 한글 폰트 지원
+
+## 📌 참고사항
+
+- 분석 알고리즘: K-Means (K=3)
+- 데이터 전처리: StandardScaler를 사용한 정규화
+- 실루엣 스코어를 통한 클러스터링 품질 평가
+
+## 📧 문의
+
+프로젝트에 대한 문의사항이나 개선 제안이 있으시면 언제든지 연락주세요!

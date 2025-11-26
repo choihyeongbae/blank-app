@@ -399,7 +399,7 @@ if selected_location != "전체":
         ax.set_xlabel('Injuries per 1000 children', fontsize=12, fontweight='bold')
         ax.set_ylabel('Accidents per 1000 children', fontsize=12, fontweight='bold')
         ax.set_title('K-Means Clustering Result (K=3)', fontsize=14, fontweight='bold')
-        ax.legend(loc='upper right')
+        ax.legend(loc='upper left')
         ax.grid(linestyle='--', alpha=0.6)
         
         st.pyplot(fig)

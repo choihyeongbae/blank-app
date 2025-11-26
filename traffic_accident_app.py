@@ -9,7 +9,7 @@ from sklearn.metrics import silhouette_score
 from io import StringIO
 
 # 한글 폰트 설정
-rc.('font', family='Malgun Gothic')
+rc('font', family='Malgun Gothic')
 plt.rcParams['axes.unicode_minus'] = False
 
 # 내장 데이터 (2024년 전국 지역별 어린이 교통사고 데이터)

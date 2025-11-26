@@ -1,16 +1,14 @@
-pip install koreanize-matplotlib
 import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import koreanize_matplotlib
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import silhouette_score
 from io import StringIO
 
 # 한글 폰트 설정
-plt.rcParams['font.family'] = 'DejaVu Sans'
+plt.rcParams['font.family'] = 'Nanum Gothic'
 plt.rcParams['axes.unicode_minus'] = False
 
 # 내장 데이터 (2024년 전국 지역별 어린이 교통사고 데이터)

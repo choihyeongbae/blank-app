@@ -8,9 +8,16 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import silhouette_score
 from io import StringIO
 
-# 한글 폰트 설정
-rc('font', family='Malgun Gothic')
-plt.rcParams['axes.unicode_minus'] = False
+# 1. 폰트 경로 지정
+font_path = "fonts/NanumGothic-Regular.ttf"  # 프로젝트 안에 넣은 폰트 경로
+
+# 2. 폰트 등록 후 이름 가져오기
+font_manager.fontManager.addfont(font_path)
+font_name = font_manager.FontProperties(fname=font_path).get_name()
+
+# 3. matplotlib에 기본 폰트로 설정
+rc('font', family=font_name)
+plt.rcParams['axes.unicode_minus'] = False  # 마이너스 깨짐 방지
 
 # 내장 데이터 (2024년 전국 지역별 어린이 교통사고 데이터)
 BUILTIN_DATA = """Location,Injuries,population_children_u12,Injuries_by_population,Injuries_1000,Accidents,Accidents_by_population,Accidents_1000

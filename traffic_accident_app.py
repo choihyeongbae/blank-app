@@ -9,7 +9,7 @@ from sklearn.metrics import silhouette_score
 from io import StringIO
 
 # 1. 폰트 경로 지정
-font_path = "fonts/NanumGothic-Regular.ttf"  # 프로젝트 안에 넣은 폰트 경로
+font_path = "NanumGothic-Regular.ttf"  # 프로젝트 안에 넣은 폰트 경로
 
 # 2. 폰트 등록 후 이름 가져오기
 font_manager.fontManager.addfont(font_path)

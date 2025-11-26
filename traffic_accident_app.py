@@ -501,7 +501,7 @@ else:
     col_left, col_right = st.columns(2)
     
     with col_left:
-        st.subheader("🗺 전국 클러스터 분포")
+        st.subheader("🌐 전국 클러스터 분포")
         
         fig, ax = plt.subplots(figsize=(12, 10))
         

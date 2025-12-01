@@ -1,15 +1,258 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib import rc, font_manager
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
-import numpy as np
+from sklearn.metrics import silhouette_score
+from io import StringIO
+
+# 1. 폰트 경로 지정
+font_path = "NanumGothic-Regular.ttf"  # 프로젝트 안에 넣은 폰트 경로
+# 2. 폰트 등록 후 이름 가져오기
+try:
+    font_manager.fontManager.addfont(font_path)
+    font_name = font_manager.FontProperties(fname=font_path).get_name()
+    # 3. matplotlib에 기본 폰트로 설정
+    rc('font', family=font_name)
+except:
+    # 폰트 파일이 없을 경우 기본 폰트 사용
+    pass
+plt.rcParams['axes.unicode_minus'] = False  # 마이너스 깨짐 방지
+
+# 내장 데이터 (2024년 전국 지역별 어린이 교통사고 데이터)
+BUILTIN_DATA = """Location,Injuries,population_children_u12,Injuries_by_population,Injuries_1000,Accidents,Accidents_by_population,Accidents_1000
+충북충주시,72,16445,0.00437823,4.378230465,56,0.00340529,3.405290362
+충북청주시,302,86169,0.003504741,3.504740684,232,0.002692384,2.692383572
+충북진천군,34,8968,0.003791258,3.791257806,30,0.003345227,3.345227475
+충북증평군,12,3506,0.003422704,3.422703936,10,0.002852253,2.85225328
+충북제천시,61,9476,0.006437315,6.437315323,42,0.00443225,4.432249894
+충북음성군,29,6172,0.004698639,4.698639015,21,0.003402463,3.402462735
+충북옥천군,8,2681,0.002983961,2.983961209,6,0.002237971,2.237970906
+충북영동군,4,2180,0.001834862,1.834862385,4,0.001834862,1.834862385
+충북보은군,7,1510,0.004635762,4.635761589,6,0.00397351,3.973509934
+충북단양군,8,1286,0.00622084,6.220839813,6,0.00466563,4.66562986
+충북괴산군,9,1538,0.005851756,5.851755527,6,0.00390117,3.901170351
+충남홍성군,20,8847,0.002260653,2.260653329,18,0.002034588,2.034587996
+충남태안군,15,3208,0.00467581,4.675810474,11,0.003428928,3.428927681
+충남청양군,4,1340,0.002985075,2.985074627,2,0.001492537,1.492537313
+충남천안시,157,67066,0.002340978,2.340977545,134,0.001998032,1.99803179
+충남예산군,25,4871,0.005132416,5.132416342,19,0.003900636,3.90063642
+충남아산시,94,42446,0.002214579,2.214578523,74,0.001743392,1.743391603
+충남서천군,12,2384,0.005033557,5.033557047,8,0.003355705,3.355704698
+충남서산시,47,16720,0.002811005,2.811004785,39,0.002332536,2.332535885
+충남부여군,6,2967,0.002022245,2.022244692,4,0.001348163,1.348163128
+충남보령시,15,6381,0.002350729,2.350728726,14,0.002194013,2.194013478
+충남당진시,48,17620,0.002724177,2.724177072,34,0.001929625,1.929625426
+충남논산시,46,7540,0.006100796,6.100795756,21,0.002785146,2.785145889
+충남금산군,5,2654,0.001883949,1.883948757,3,0.001130369,1.130369254
+충남공주시,32,6103,0.005243323,5.243322956,22,0.003604785,3.604784532
+충남계룡시,12,5220,0.002298851,2.298850575,8,0.001532567,1.53256705
+제주제주시,206,52113,0.003952948,3.952948401,161,0.00308944,3.089440255
+제주서귀포시,104,17358,0.005991474,5.991473672,81,0.004666436,4.666436225
+전북진안군,2,1195,0.00167364,1.673640167,2,0.00167364,1.673640167
+전북정읍시,15,6858,0.002187227,2.187226597,15,0.002187227,2.187226597
+전북전주시,133,60007,0.002216408,2.216408086,103,0.001716466,1.716466412
+전북장수군,2,1140,0.001754386,1.754385965,2,0.001754386,1.754385965
+전북임실군,2,1417,0.001411433,1.411432604,2,0.001411433,1.411432604
+전북익산시,41,20594,0.001990871,1.990871128,36,0.001748082,1.748081966
+전북완주군,22,8717,0.002523804,2.523804061,17,0.001950212,1.950212229
+전북순창군,7,1561,0.004484305,4.484304933,4,0.00256246,2.562459962
+전북부안군,9,2679,0.003359462,3.359462486,7,0.002612915,2.612915267
+전북무주군,8,1206,0.006633499,6.633499171,7,0.005804312,5.804311774
+전북남원시,6,5192,0.001155624,1.155624037,4,0.000770416,0.770416025
+전북김제시,16,4976,0.003215434,3.215434084,15,0.003014469,3.014469453
+전북군산시,72,22764,0.003162889,3.162888772,54,0.002372167,2.372166579
+전북고창군,8,2876,0.002781641,2.781641168,5,0.001738526,1.73852573
+전남화순군,10,3832,0.002609603,2.60960334,7,0.001826722,1.826722338
+전남해남군,22,3890,0.005655527,5.655526992,17,0.00437018,4.370179949
+전남함평군,8,1391,0.005751258,5.751258088,4,0.002875629,2.875629044
+전남진도군,4,1750,0.002285714,2.285714286,4,0.002285714,2.285714286
+전남장흥군,10,2071,0.004828585,4.828585225,7,0.00338001,3.380009657
+전남장성군,17,2679,0.006345651,6.345651362,12,0.004479283,4.479283315
+전남완도군,8,3179,0.002516515,2.516514627,7,0.00220195,2.201950299
+전남영암군,11,3462,0.003177354,3.177354131,10,0.002888504,2.888503755
+전남영광군,13,4345,0.002991945,2.991944764,8,0.001841197,1.841196778
+전남여수시,91,22850,0.003982495,3.98249453,76,0.003326039,3.326039387
+전남신안군,4,1803,0.002218525,2.218524681,4,0.002218525,2.218524681
+전남순천시,59,27394,0.002153756,2.153756297,46,0.0016792,1.679199825
+전남보성군,6,1757,0.003414912,3.414911781,6,0.003414912,3.414911781
+전남무안군,28,10522,0.002661091,2.661091047,22,0.002090857,2.090857251
+전남목포시,80,18565,0.004309184,4.309183948,61,0.003285753,3.285752761
+전남담양군,23,2582,0.008907823,8.907823393,16,0.006196747,6.196746708
+전남나주시,44,12057,0.003649332,3.649332338,30,0.002488181,2.48818114
+전남광양시,47,15897,0.002956533,2.956532679,39,0.002453293,2.453293074
+전남곡성군,4,1144,0.003496503,3.496503497,3,0.002622378,2.622377622
+전남고흥군,3,2787,0.001076426,1.076426265,3,0.001076426,1.076426265
+전남강진군,7,1935,0.003617571,3.617571059,7,0.003617571,3.617571059
+인천중구,31,17211,0.001801174,1.801173668,28,0.001626867,1.626866539
+인천옹진군,2,837,0.002389486,2.38948626,2,0.002389486,2.38948626
+인천연수구,41,47467,0.000863758,0.863757979,38,0.000800556,0.800556176
+인천서구,110,73778,0.001490959,1.490959365,89,0.001206322,1.206321668
+인천부평구,43,38414,0.001119384,1.119383558,38,0.000989223,0.989222679
+인천미추홀구,60,32722,0.001833629,1.833628751,54,0.001650266,1.650265876
+인천동구,10,3766,0.002655337,2.655337228,10,0.002655337,2.655337228
+인천남동구,90,39742,0.002264607,2.264606713,82,0.002063308,2.063308339
+인천계양구,25,18883,0.001323942,1.32394217,22,0.001165069,1.16506911
+인천강화군,17,3840,0.004427083,4.427083333,15,0.00390625,3.90625
+울산중구,22,18407,0.001195197,1.195197479,19,0.001032216,1.032216005
+울산울주군,44,18758,0.002345666,2.345665849,32,0.001705939,1.705938799
+울산북구,51,27130,0.001879838,1.879837818,43,0.001584961,1.584961297
+울산동구,25,15412,0.001622113,1.62211264,23,0.001492344,1.492343628
+울산남구,54,27011,0.001999186,1.999185517,46,0.00170301,1.703009885
+세종세종시,122,58540,0.002084045,2.084045097,104,0.001776563,1.776563034
+서울중랑구,59,24470,0.002411116,2.411115652,46,0.001879853,1.879852881
+서울중구,26,7025,0.003701068,3.701067616,22,0.003131673,3.131672598
+서울종로구,20,8080,0.002475248,2.475247525,19,0.002351485,2.351485149
+서울은평구,62,31518,0.00196713,1.967129894,54,0.001713307,1.713306682
+서울용산구,22,13910,0.001581596,1.581595974,18,0.001294033,1.29403307
+서울영등포구,74,27571,0.00268398,2.683979544,60,0.0021762,2.17619963
+서울양천구,71,37430,0.001896874,1.896874165,66,0.001763291,1.763291477
+서울송파구,128,58492,0.002188333,2.188333447,105,0.001795117,1.795117281
+서울성북구,37,31906,0.001159656,1.159656491,33,0.001034288,1.034288222
+서울성동구,29,21073,0.001376169,1.376168557,25,0.001186352,1.186352204
+서울서초구,93,40012,0.002324303,2.324302709,73,0.001824453,1.824452664
+서울서대문구,40,22828,0.001752234,1.752234098,33,0.001445593,1.445593131
+서울마포구,42,26860,0.001563663,1.56366344,35,0.001303053,1.303052867
+서울동작구,42,25824,0.001626394,1.626394052,36,0.001394052,1.394052045
+서울동대문구,52,23624,0.002201151,2.201151371,44,0.001862513,1.862512699
+서울도봉구,23,18897,0.001217124,1.217124411,21,0.001111288,1.111287506
+서울노원구,74,36463,0.002029455,2.029454516,64,0.001755204,1.755203905
+서울금천구,40,12461,0.003210015,3.210015248,32,0.002568012,2.568012198
+서울구로구,42,29111,0.001442754,1.442753598,36,0.001236646,1.236645941
+서울광진구,28,20480,0.001367188,1.3671875,23,0.001123047,1.123046875
+서울관악구,43,21284,0.002020297,2.020296937,29,0.001362526,1.362525841
+서울강서구,56,40908,0.001368925,1.368925394,49,0.00119781,1.197809719
+서울강북구,35,15547,0.002251238,2.251238181,29,0.001865312,1.865311636
+서울강동구,91,43747,0.002080143,2.080142638,74,0.001691545,1.691544563
+서울강남구,109,51952,0.002098091,2.098090545,93,0.001790114,1.790113951
+부산해운대구,46,32274,0.001425296,1.425295904,35,0.001084464,1.084464275
+부산진구,46,25606,0.001796454,1.796453956,41,0.001601187,1.601187222
+부산중구,20,1147,0.017436792,17.43679163,17,0.014821273,14.82127289
+부산영도구,14,5735,0.002441151,2.441150828,13,0.002266783,2.266782912
+부산연제구,28,18239,0.001535172,1.535171884,24,0.001315862,1.315861615
+부산수영구,44,11667,0.003771321,3.771320819,35,0.002999914,2.999914288
+부산서구,21,6511,0.003225311,3.225311012,19,0.002918139,2.918138535
+부산사하구,52,20878,0.00249066,2.490660025,39,0.001867995,1.867995019
+부산사상구,27,12441,0.002170244,2.17024355,23,0.001848726,1.848725987
+부산북구,35,20736,0.001687886,1.687885802,30,0.001446759,1.446759259
+부산동래구,57,26468,0.002153544,2.153543902,45,0.001700166,1.700166238
+부산동구,20,5013,0.003989627,3.98962697,15,0.00299222,2.992220227
+부산남구,45,19861,0.002265747,2.265746941,39,0.001963647,1.963647349
+부산기장군,58,20509,0.002828027,2.82802672,46,0.002242918,2.242917743
+부산금정구,33,13160,0.002507599,2.507598784,30,0.002279635,2.279635258
+부산강서구,55,22371,0.00245854,2.458540074,42,0.001877431,1.877430602
+대전중구,61,17501,0.003485515,3.485515113,52,0.002971259,2.971258785
+대전유성구,119,42634,0.0027912,2.791199512,97,0.002275179,2.275179434
+대전서구,148,41904,0.003531882,3.531882398,118,0.00281596,2.81596029
+대전동구,53,16758,0.003162669,3.162668576,44,0.002625612,2.625611648
+대전대덕구,54,12009,0.004496628,4.496627529,42,0.003497377,3.497376967
+대구중구,43,10199,0.0042161,4.216099618,33,0.003235611,3.235611334
+대구수성구,119,39286,0.003029069,3.029068879,106,0.002698162,2.698162195
+대구서구,38,9615,0.003952158,3.952158086,35,0.003640146,3.640145606
+대구북구,90,34605,0.00260078,2.600780234,79,0.002282907,2.282907094
+대구동구,80,28569,0.002800238,2.80023802,62,0.002170184,2.170184466
+대구달성군,65,31655,0.002053388,2.05338809,56,0.001769073,1.769072816
+대구달서구,157,43765,0.003587341,3.587341483,137,0.003130355,3.130355307
+대구남구,18,7473,0.002408671,2.408671216,15,0.002007226,2.007226014
+대구군위군,5,702,0.007122507,7.122507123,5,0.007122507,7.122507123
+광주서구,89,23675,0.00375924,3.759239704,69,0.002914467,2.914466737
+광주북구,119,39251,0.00303177,3.031769891,104,0.002649614,2.649614023
+광주동구,16,9377,0.001706303,1.706302655,12,0.001279727,1.279726992
+광주남구,49,20546,0.002384892,2.384892436,40,0.001946851,1.946850969
+광주광산구,145,42565,0.003406555,3.406554681,122,0.002866205,2.866204628
+경북포항시,159,44497,0.003573275,3.573274603,133,0.002988966,2.988965548
+경북칠곡군,23,9059,0.002538912,2.53891158,18,0.001986974,1.98697428
+경북청송군,6,1081,0.005550416,5.550416281,4,0.003700278,3.700277521
+경북청도군,8,1638,0.004884005,4.884004884,7,0.004273504,4.273504274
+경북의성군,6,1962,0.003058104,3.058103976,5,0.00254842,2.54841998
+경북울진군,13,3108,0.004182754,4.182754183,9,0.002895753,2.895752896
+경북예천군,7,5333,0.001312582,1.312582036,7,0.001312582,1.312582036
+경북영천시,26,6268,0.004148054,4.148053606,22,0.003509892,3.509891512
+경북영주시,5,6745,0.00074129,0.741289844,3,0.000444774,0.444773907
+경북영양군,3,692,0.00433526,4.335260116,2,0.002890173,2.89017341
+경북영덕군,10,1589,0.006293266,6.293266205,8,0.005034613,5.034612964
+경북안동시,54,11492,0.004698921,4.698920989,41,0.003567699,3.567699269
+경북성주군,3,1954,0.001535312,1.53531218,3,0.001535312,1.53531218
+경북상주시,29,5687,0.005099349,5.099349393,22,0.003868472,3.868471954
+경북문경시,10,4271,0.002341372,2.341372044,9,0.002107235,2.10723484
+경북김천시,9,11317,0.000795264,0.795263762,8,0.000706901,0.706901122
+경북구미시,79,43990,0.001795863,1.795862696,69,0.001568538,1.568538304
+경북고령군,2,1429,0.00139958,1.399580126,2,0.00139958,1.399580126
+경북경주시,93,17888,0.005199016,5.1990161,54,0.003018784,3.018783542
+경북경산시,57,22480,0.002535587,2.535587189,49,0.002179715,2.179715302
+경남합천군,6,1594,0.003764115,3.764115433,4,0.00250941,2.509410289
+경남함양군,2,1919,0.001042209,1.042209484,2,0.001042209,1.042209484
+경남함안군,9,3909,0.002302379,2.302379125,7,0.001790739,1.79073932
+경남하동군,6,1785,0.003361345,3.361344538,5,0.00280112,2.801120448
+경남통영시,51,9233,0.005523665,5.523665114,34,0.003682443,3.68244341
+경남창원시,137,91215,0.001501946,1.501945952,112,0.001227868,1.227868223
+경남창녕군,13,3012,0.004316069,4.316069057,11,0.003652058,3.652058433
+경남진주시,33,31802,0.001037671,1.037670587,27,0.000849003,0.849003207
+경남양산시,76,38620,0.001967892,1.967892284,63,0.001631279,1.63127913
+경남산청군,7,1323,0.005291005,5.291005291,6,0.004535147,4.535147392
+경남사천시,25,8789,0.002844465,2.844464672,21,0.00238935,2.389350324
+경남밀양시,17,6006,0.002830503,2.830502831,13,0.002164502,2.164502165
+경남남해군,7,1840,0.003804348,3.804347826,5,0.002717391,2.717391304
+경남김해시,105,54288,0.001934129,1.934129089,84,0.001547303,1.547303271
+경남고성군,6,2482,0.002417405,2.417405318,5,0.002014504,2.014504432
+경남거창군,3,4234,0.00070855,0.708549835,2,0.000472367,0.472366556
+경남거제시,47,25890,0.001815373,1.815372731,45,0.001738123,1.738122827
+경기화성시,314,129191,0.00243051,2.430509865,247,0.001911898,1.911897888
+경기하남시,80,39818,0.002009142,2.009141594,60,0.001506856,1.506856196
+경기포천시,33,8768,0.003763686,3.763686131,26,0.002965328,2.965328467
+경기평택시,183,65217,0.002806017,2.806016836,145,0.002223347,2.223346673
+경기파주시,93,56089,0.001658079,1.658079124,78,0.001390647,1.390647007
+경기이천시,78,20782,0.003753248,3.753248003,57,0.002742758,2.742758156
+경기의정부시,108,40081,0.002694544,2.694543549,91,0.002270402,2.270402435
+경기의왕시,34,14730,0.002308215,2.308214528,25,0.001697217,1.697216565
+경기용인시,262,112530,0.002328268,2.328268017,204,0.00181285,1.812849907
+경기오산시,67,26625,0.002516432,2.516431925,58,0.002178404,2.178403756
+경기연천군,17,2680,0.006343284,6.343283582,13,0.004850746,4.850746269
+경기여주시,40,8378,0.004774409,4.774409167,25,0.002984006,2.984005729
+경기양평군,68,8949,0.007598614,7.59861437,42,0.004693262,4.693261817
+경기양주시,80,31835,0.002512957,2.512957437,67,0.002104602,2.104601853
+경기안양시,81,49403,0.001639577,1.639576544,68,0.001376435,1.376434629
+경기안성시,71,15960,0.004448622,4.448621554,56,0.003508772,3.50877193
+경기안산시,191,46684,0.004091338,4.091337503,151,0.003234513,3.234512895
+경기시흥시,135,57274,0.00235709,2.357090477,113,0.001972972,1.972972029
+경기수원시,263,110019,0.002390496,2.390496187,216,0.001963297,1.963297249
+경기성남시,189,81113,0.002330083,2.330082724,148,0.001824615,1.824615043
+경기부천시,153,59930,0.002552978,2.552978475,134,0.002235942,2.235941932
+경기동두천시,22,5994,0.003670337,3.670337004,18,0.003003003,3.003003003
+경기남양주시,162,73910,0.002191855,2.191854959,133,0.001799486,1.799485861
+경기김포시,135,60253,0.002240552,2.240552338,105,0.001742652,1.742651818
+경기군포시,29,20048,0.001446528,1.446528332,25,0.001247007,1.247007183
+경기구리시,50,15845,0.00315557,3.15556958,42,0.002650678,2.650678447
+경기광주시,163,40206,0.004054121,4.054121275,130,0.003233348,3.233348256
+경기광명시,65,25129,0.002586653,2.586652871,55,0.002188706,2.188706276
+경기과천시,9,11624,0.00077426,0.774260151,6,0.000516173,0.516173434
+경기고양시,159,94617,0.001680459,1.680459114,140,0.00147965,1.479649534
+경기가평군,14,3789,0.003694906,3.694906308,12,0.003167063,3.167062549
+강원횡성군,15,2494,0.006014435,6.014434643,9,0.003608661,3.608660786
+강원화천군,12,1864,0.006437768,6.43776824,8,0.004291845,4.291845494
+강원홍천군,5,4225,0.001183432,1.183431953,5,0.001183432,1.183431953
+강원평창군,18,2008,0.008964143,8.964143426,15,0.00747012,7.470119522
+강원태백시,15,2534,0.005919495,5.91949487,12,0.004735596,4.735595896
+강원춘천시,92,25709,0.003578513,3.578513361,78,0.003033957,3.03395698
+강원철원군,4,3287,0.001216915,1.21691512,4,0.001216915,1.21691512
+강원정선군,14,1764,0.007936508,7.936507937,7,0.003968254,3.968253968
+강원인제군,8,2846,0.002810963,2.810962755,5,0.001756852,1.756851722
+강원원주시,97,34583,0.002804846,2.804846312,71,0.002053032,2.053031836
+강원영월군,9,1929,0.00466563,4.66562986,7,0.003628823,3.628823224
+강원양양군,16,1552,0.010309278,10.30927835,11,0.007087629,7.087628866
+강원양구군,16,1813,0.008825152,8.825151682,4,0.002206288,2.206287921
+강원속초시,36,6702,0.005371531,5.371530886,28,0.004177857,4.177857356
+강원삼척시,8,4174,0.001916627,1.916626737,7,0.001677048,1.677048395
+강원동해시,16,7414,0.002158079,2.158079309,11,0.00148368,1.483679525
+강원고성군,14,1667,0.00839832,8.398320336,9,0.00539892,5.398920216
+강원강릉시,34,15520,0.002190722,2.190721649,28,0.001804124,1.804123711"""
 
 # 페이지 설정
 st.set_page_config(
-    page_title="경북 어린이 교통사고 분석",
-    page_icon="🚸",
+    page_title="어린이 교통사고 지역 분석",
+    page_icon="🚦",
     layout="wide"
 )
 
@@ -48,17 +291,6 @@ st.markdown("""
         text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
     }
     
-    /* 카드 스타일 (글래스모피즘) */
-    .stMetric, .element-container {
-        background: rgba(255, 255, 255, 0.1);
-        backdrop-filter: blur(10px);
-        border-radius: 15px;
-        padding: 20px;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-        margin: 10px 0;
-    }
-    
     /* 메트릭 카드 */
     [data-testid="stMetricValue"] {
         font-size: 2rem !important;
@@ -69,24 +301,6 @@ st.markdown("""
     [data-testid="stMetricLabel"] {
         color: rgba(255, 255, 255, 0.9) !important;
         font-size: 1rem !important;
-    }
-    
-    /* 버튼 스타일 */
-    .stButton > button {
-        background: rgba(255, 255, 255, 0.2);
-        color: white;
-        border: 1px solid rgba(255, 255, 255, 0.3);
-        border-radius: 10px;
-        padding: 10px 24px;
-        font-weight: 600;
-        backdrop-filter: blur(10px);
-        transition: all 0.3s ease;
-    }
-    
-    .stButton > button:hover {
-        background: rgba(255, 255, 255, 0.3);
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
     }
     
     /* 셀렉트박스 스타일 */
@@ -105,15 +319,6 @@ st.markdown("""
         padding: 10px;
     }
     
-    /* 차트 배경 */
-    .js-plotly-plot {
-        background: rgba(255, 255, 255, 0.1) !important;
-        backdrop-filter: blur(10px);
-        border-radius: 15px;
-        padding: 15px;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-    }
-    
     /* 구분선 */
     hr {
         border: none;
@@ -122,23 +327,19 @@ st.markdown("""
         margin: 2rem 0;
     }
     
-    /* 탭 스타일 */
-    .stTabs [data-baseweb="tab-list"] {
+    /* Info 박스 */
+    .stAlert {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 15px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    /* Expander */
+    .streamlit-expanderHeader {
         background: rgba(255, 255, 255, 0.1);
         backdrop-filter: blur(10px);
         border-radius: 10px;
-        padding: 5px;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        color: white !important;
-        background: transparent;
-        border-radius: 8px;
-        padding: 10px 20px;
-    }
-    
-    .stTabs [aria-selected="true"] {
-        background: rgba(255, 255, 255, 0.2) !important;
     }
     
     /* 애니메이션 */
@@ -155,276 +356,378 @@ st.markdown("""
 
 # 데이터 로드 함수
 @st.cache_data
-def load_data():
-    try:
-        # 여기에 실제 데이터 파일 경로를 입력하세요
-        df = pd.read_csv('경북_어린이교통사고_2019_2023.csv', encoding='utf-8-sig')
-        return df
-    except:
-        # 샘플 데이터 생성
-        st.warning("⚠️ 데이터 파일을 찾을 수 없습니다. 샘플 데이터를 사용합니다.")
-        data = {
-            '시군구': ['포항시'] * 50 + ['경주시'] * 40 + ['안동시'] * 30,
-            '사고건수': np.random.randint(1, 20, 120),
-            '사망자수': np.random.randint(0, 3, 120),
-            '중상자수': np.random.randint(0, 5, 120),
-            '경상자수': np.random.randint(0, 10, 120),
-            '연도': np.random.choice([2019, 2020, 2021, 2022, 2023], 120)
-        }
-        return pd.DataFrame(data)
-
-# K-means 클러스터링 함수
-def perform_kmeans(df, n_clusters=3):
-    # 수치형 데이터만 선택
-    numeric_cols = ['사고건수', '사망자수', '중상자수', '경상자수']
-    X = df[numeric_cols].fillna(0)
+def load_and_cluster_data():
+    """내장 데이터를 로드하고 K-Means 클러스터링을 수행합니다."""
+    # 내장 데이터 로드
+    df = pd.read_csv(StringIO(BUILTIN_DATA))
     
-    # 표준화
+    # K-Means 클러스터링
+    X = pd.DataFrame({
+        '부상자수': df['Injuries_1000'].values,
+        '사고건수': df['Accidents_1000'].values,
+    })
+    
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
     
-    # K-means
-    kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
-    df['클러스터'] = kmeans.fit_predict(X_scaled)
+    kmeans = KMeans(n_clusters=3, random_state=0, n_init=10)
+    cluster_labels = kmeans.fit_predict(X_scaled)
     
-    return df, kmeans
+    df['cluster'] = cluster_labels
+    
+    # 실루엣 스코어 계산
+    sil_score = silhouette_score(X_scaled, cluster_labels)
+    
+    # 중심점 계산
+    centroids_original = scaler.inverse_transform(kmeans.cluster_centers_)
+    
+    return df, sil_score, centroids_original, scaler
 
-# 메인 앱
-def main():
-    # 헤더
-    st.markdown("# 🚸 경북 어린이 교통사고 분석 대시보드")
-    st.markdown("---")
+# 데이터 로드
+df, sil_score, centroids_original, scaler = load_and_cluster_data()
+
+# 타이틀
+st.title("🚦 어린이 교통사고 지역별 안전도 분석")
+st.markdown("---")
+
+# 사이드바: 검색 기능
+st.sidebar.header("🔍 지역 검색")
+
+# 지역 목록
+locations = sorted(df['Location'].unique())
+selected_location = st.sidebar.selectbox(
+    "지역을 선택하세요:",
+    options=["전체"] + locations
+)
+
+# 클러스터 정보 정의
+cluster_info = {
+    0: {"name": "안전 지역", "color": "🟢", "description": "비교적 안전한 지역"},
+    1: {"name": "주의 지역", "color": "🟡", "description": "중간 위험 지역"},
+    2: {"name": "위험 지역", "color": "🔴", "description": "고위험 지역"}
+}
+
+# 메인 영역
+if selected_location != "전체":
+    # 선택된 지역 정보
+    region_data = df[df['Location'] == selected_location].iloc[0]
+    cluster_num = region_data['cluster']
     
-    # 데이터 로드
-    df = load_data()
+    # 지역 정보 표시
+    st.header(f"📍 {selected_location}")
     
-    # 사이드바
-    with st.sidebar:
-        st.markdown("## 📊 필터 설정")
-        
-        # 연도 선택
-        years = sorted(df['연도'].unique()) if '연도' in df.columns else [2023]
-        selected_year = st.selectbox("📅 연도 선택", years, index=len(years)-1)
-        
-        # 시군구 선택
-        regions = ['전체'] + sorted(df['시군구'].unique().tolist())
-        selected_region = st.selectbox("📍 지역 선택", regions)
-        
-        # 클러스터 개수
-        n_clusters = st.slider("🎯 클러스터 개수", 2, 5, 3)
-        
-        st.markdown("---")
-        st.markdown("### 📌 분석 정보")
-        st.info("K-means 클러스터링을 통해 사고 유형을 분류합니다.")
-    
-    # 데이터 필터링
-    filtered_df = df[df['연도'] == selected_year].copy() if '연도' in df.columns else df.copy()
-    if selected_region != '전체':
-        filtered_df = filtered_df[filtered_df['시군구'] == selected_region]
-    
-    # 상단 메트릭
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        total_accidents = filtered_df['사고건수'].sum()
-        st.metric("🚗 총 사고건수", f"{total_accidents:,}건")
-    
-    with col2:
-        total_deaths = filtered_df['사망자수'].sum()
-        st.metric("💀 사망자수", f"{total_deaths}명")
-    
-    with col3:
-        total_serious = filtered_df['중상자수'].sum()
-        st.metric("🏥 중상자수", f"{total_serious}명")
-    
-    with col4:
-        total_minor = filtered_df['경상자수'].sum()
-        st.metric("🩹 경상자수", f"{total_minor}명")
-    
-    st.markdown("---")
-    
-    # 탭 생성
-    tab1, tab2, tab3 = st.tabs(["📈 지역별 현황", "🎯 클러스터 분석", "📊 상세 통계"])
-    
-    with tab1:
-        st.markdown("## 📍 지역별 사고 현황")
-        
-        # 지역별 집계
-        region_stats = filtered_df.groupby('시군구').agg({
-            '사고건수': 'sum',
-            '사망자수': 'sum',
-            '중상자수': 'sum',
-            '경상자수': 'sum'
-        }).reset_index()
-        region_stats = region_stats.sort_values('사고건수', ascending=False)
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # 막대 그래프
-            fig = px.bar(
-                region_stats.head(10),
-                x='시군구',
-                y='사고건수',
-                title='지역별 사고 건수 TOP 10',
-                color='사고건수',
-                color_continuous_scale='Reds'
-            )
-            fig.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font_color='white',
-                showlegend=False
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        
-        with col2:
-            # 파이 차트
-            fig = px.pie(
-                region_stats.head(5),
-                values='사고건수',
-                names='시군구',
-                title='상위 5개 지역 사고 비율'
-            )
-            fig.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font_color='white'
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        
-        # 순위 테이블
-        st.markdown("### 🏆 지역별 순위")
-        region_stats['순위'] = range(1, len(region_stats) + 1)
-        st.dataframe(
-            region_stats[['순위', '시군구', '사고건수', '사망자수', '중상자수', '경상자수']],
-            use_container_width=True,
-            hide_index=True
+        st.metric(
+            label="클러스터 분류",
+            value=f"{cluster_info[cluster_num]['color']} {cluster_info[cluster_num]['name']}"
         )
     
-    with tab2:
-        st.markdown("## 🎯 K-Means 클러스터 분석")
-        
-        # 클러스터링 수행
-        clustered_df, kmeans = perform_kmeans(filtered_df, n_clusters)
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # 산점도 - 사고건수 vs 사망자수
-            fig = px.scatter(
-                clustered_df,
-                x='사고건수',
-                y='사망자수',
-                color='클러스터',
-                size='중상자수',
-                hover_data=['시군구'],
-                title='클러스터별 사고 분포 (사고건수 vs 사망자수)',
-                color_continuous_scale='Viridis'
-            )
-            fig.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font_color='white'
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        
-        with col2:
-            # 산점도 - 중상자수 vs 경상자수
-            fig = px.scatter(
-                clustered_df,
-                x='중상자수',
-                y='경상자수',
-                color='클러스터',
-                size='사고건수',
-                hover_data=['시군구'],
-                title='클러스터별 사고 분포 (중상자수 vs 경상자수)',
-                color_continuous_scale='Viridis'
-            )
-            fig.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font_color='white'
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        
-        # 클러스터별 통계
-        st.markdown("### 📊 클러스터별 특성")
-        cluster_stats = clustered_df.groupby('클러스터').agg({
-            '사고건수': ['mean', 'sum'],
-            '사망자수': ['mean', 'sum'],
-            '중상자수': ['mean', 'sum'],
-            '경상자수': ['mean', 'sum']
-        }).round(2)
-        
-        st.dataframe(cluster_stats, use_container_width=True)
+    with col2:
+        st.metric(
+            label="1000명당 부상자수",
+            value=f"{region_data['Injuries_1000']:.2f}명"
+        )
     
-    with tab3:
-        st.markdown("## 📊 상세 통계")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # 시계열 분석 (연도별)
-            if '연도' in df.columns:
-                yearly_stats = df.groupby('연도')['사고건수'].sum().reset_index()
-                fig = px.line(
-                    yearly_stats,
-                    x='연도',
-                    y='사고건수',
-                    title='연도별 사고 추이',
-                    markers=True
-                )
-                fig.update_layout(
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    font_color='white'
-                )
-                st.plotly_chart(fig, use_container_width=True)
-        
-        with col2:
-            # 피해 정도 비교
-            damage_data = pd.DataFrame({
-                '피해정도': ['사망', '중상', '경상'],
-                '인원': [
-                    filtered_df['사망자수'].sum(),
-                    filtered_df['중상자수'].sum(),
-                    filtered_df['경상자수'].sum()
-                ]
-            })
-            fig = px.bar(
-                damage_data,
-                x='피해정도',
-                y='인원',
-                title='피해 정도별 인원',
-                color='피해정도',
-                color_discrete_map={'사망': '#ff4444', '중상': '#ff8800', '경상': '#ffcc00'}
-            )
-            fig.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font_color='white',
-                showlegend=False
-            )
-            st.plotly_chart(fig, use_container_width=True)
-        
-        # 원본 데이터
-        with st.expander("🔍 원본 데이터 보기"):
-            st.dataframe(filtered_df, use_container_width=True)
+    with col3:
+        st.metric(
+            label="1000명당 사고건수",
+            value=f"{region_data['Accidents_1000']:.2f}건"
+        )
     
-    # 푸터
+    with col4:
+        # 전국 평균 대비
+        avg_injuries = df['Injuries_1000'].mean()
+        diff = region_data['Injuries_1000'] - avg_injuries
+        st.metric(
+            label="전국 평균 대비",
+            value=f"{diff:+.2f}명",
+            delta=f"{(diff/avg_injuries)*100:.1f}%"
+        )
+    
     st.markdown("---")
-    st.markdown(
-        """
-        <div style='text-align: center; padding: 20px;'>
-            <p style='color: rgba(255,255,255,0.7);'>
-                📊 2019-2023 경북 어린이 교통사고 데이터 분석<br>
-                🏫 포항여자고등학교 | 최형배 선생님 지도
-            </p>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    
+    # 시각화 섹션
+    col_left, col_right = st.columns(2)
+    
+    with col_left:
+        st.subheader("📊 전국 클러스터 분포")
+        
+        # 클러스터링 결과 산점도
+        fig, ax = plt.subplots(figsize=(10, 8))
+        
+        colors = {0: 'orange', 1: 'blue', 2: 'green'}
+        labels = {0: 'Cluster 0 (Safe)', 1: 'Cluster 1 (Caution)', 2: 'Cluster 2 (Danger)'}
+        
+        for c in df['cluster'].unique():
+            temp = df[df['cluster'] == c]
+            ax.scatter(
+                temp['Injuries_1000'],
+                temp['Accidents_1000'],
+                label=labels[c],
+                s=100,
+                c=colors[c],
+                alpha=0.6,
+                zorder=8
+            )
+        
+        # 선택된 지역 강조
+        ax.scatter(
+            region_data['Injuries_1000'],
+            region_data['Accidents_1000'],
+            s=500,
+            c='red',
+            marker='*',
+            edgecolors='black',
+            linewidths=2,
+            label=f'{selected_location} (Selected)',
+            zorder=10
+        )
+        
+        # 중심점
+        ax.scatter(
+            centroids_original[:, 0],
+            centroids_original[:, 1],
+            marker='X',
+            s=300,
+            color='black',
+            label='Centroids',
+            zorder=9
+        )
+        
+        ax.set_xlabel('Injuries per 1000 children', fontsize=12, fontweight='bold')
+        ax.set_ylabel('Accidents per 1000 children', fontsize=12, fontweight='bold')
+        ax.set_title('K-Means Clustering Result (K=3)', fontsize=14, fontweight='bold')
+        ax.legend(loc='upper left')
+        ax.grid(linestyle='--', alpha=0.6)
+        
+        # 배경 투명하게
+        fig.patch.set_alpha(0.0)
+        ax.patch.set_alpha(0.0)
+        
+        st.pyplot(fig)
+        plt.close()
+    
+    with col_right:
+        st.subheader("📈 지역별 비교")
+        
+        # 같은 클러스터 내 지역들과 비교
+        same_cluster = df[df['cluster'] == cluster_num].sort_values('Injuries_1000', ascending=False)
+        
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10))
+        
+        # 부상자수 비교
+        top_10 = same_cluster.head(10)
+        colors_bar = ['red' if loc == selected_location else 'skyblue' for loc in top_10['Location']]
+        
+        ax1.barh(range(len(top_10)), top_10['Injuries_1000'], color=colors_bar)
+        ax1.set_yticks(range(len(top_10)))
+        ax1.set_yticklabels(top_10['Location'])
+        ax1.set_xlabel('Injuries per 1000', fontweight='bold')
+        ax1.set_title(f'Top 10 Injury Rates in {cluster_info[cluster_num]["name"]}', fontweight='bold')
+        ax1.axvline(region_data['Injuries_1000'], color='red', linestyle='--', linewidth=2)
+        ax1.grid(axis='x', linestyle='--', alpha=0.6)
+        
+        # 사고건수 비교
+        same_cluster_acc = same_cluster.sort_values('Accidents_1000', ascending=False).head(10)
+        colors_bar2 = ['red' if loc == selected_location else 'lightcoral' for loc in same_cluster_acc['Location']]
+        
+        ax2.barh(range(len(same_cluster_acc)), same_cluster_acc['Accidents_1000'], color=colors_bar2)
+        ax2.set_yticks(range(len(same_cluster_acc)))
+        ax2.set_yticklabels(same_cluster_acc['Location'])
+        ax2.set_xlabel('Accidents per 1000', fontweight='bold')
+        ax2.set_title(f'Top 10 Accident Rates in {cluster_info[cluster_num]["name"]}', fontweight='bold')
+        ax2.axvline(region_data['Accidents_1000'], color='red', linestyle='--', linewidth=2)
+        ax2.grid(axis='x', linestyle='--', alpha=0.6)
+        
+        # 배경 투명하게
+        fig.patch.set_alpha(0.0)
+        ax1.patch.set_alpha(0.0)
+        ax2.patch.set_alpha(0.0)
+        
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close()
+    
+    # 상세 통계
+    st.markdown("---")
+    st.subheader("📋 상세 통계")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.write("**전국 평균**")
+        st.write(f"부상자수: {df['Injuries_1000'].mean():.2f}명")
+        st.write(f"사고건수: {df['Accidents_1000'].mean():.2f}건")
+    
+    with col2:
+        st.write(f"**{cluster_info[cluster_num]['name']} 평균**")
+        cluster_data = df[df['cluster'] == cluster_num]
+        st.write(f"부상자수: {cluster_data['Injuries_1000'].mean():.2f}명")
+        st.write(f"사고건수: {cluster_data['Accidents_1000'].mean():.2f}건")
+    
+    with col3:
+        st.write(f"**{selected_location} 순위**")
+        rank_injuries = (df['Injuries_1000'] > region_data['Injuries_1000']).sum() + 1
+        rank_accidents = (df['Accidents_1000'] > region_data['Accidents_1000']).sum() + 1
+        st.write(f"부상자수: {rank_injuries}/{len(df)}위")
+        st.write(f"사고건수: {rank_accidents}/{len(df)}위")
+        
+else:
+    # 전체 개요
+    st.header("📊 전국 어린이 교통사고 안전도 개요")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric(
+            label="전체 분석 지역",
+            value=f"{len(df)}개"
+        )
+    
+    with col2:
+        st.metric(
+            label="안전 지역 (군집 0)",
+            value=f"{(df['cluster']==0).sum()}개"
+        )
+    
+    with col3:
+        st.metric(
+            label="주의 지역 (군집 1)",
+            value=f"{(df['cluster']==1).sum()}개"
+        )
+    
+    with col4:
+        st.metric(
+            label="위험 지역 (군집 2)",
+            value=f"{(df['cluster']==2).sum()}개"
+        )
+    
+    st.markdown("---")
+    
+    # 전체 시각화
+    col_left, col_right = st.columns(2)
+    
+    with col_left:
+        st.subheader("🌐 전국 클러스터 분포")
+        
+        fig, ax = plt.subplots(figsize=(12, 10))
+        
+        colors = {0: 'orange', 1: 'blue', 2: 'green'}
+        labels = {0: 'Cluster 0 (Safe)', 1: 'Cluster 1 (Caution)', 2: 'Cluster 2 (Danger)'}
+        
+        for c in df['cluster'].unique():
+            temp = df[df['cluster'] == c]
+            ax.scatter(
+                temp['Injuries_1000'],
+                temp['Accidents_1000'],
+                label=labels[c],
+                s=100,
+                c=colors[c],
+                alpha=0.6,
+                zorder=8
+            )
+        
+        ax.scatter(
+            centroids_original[:, 0],
+            centroids_original[:, 1],
+            marker='X',
+            s=300,
+            color='black',
+            label='Centroids',
+            zorder=9
+        )
+        
+        ax.set_xlabel('Injuries per 1000 children', fontsize=12, fontweight='bold')
+        ax.set_ylabel('Accidents per 1000 children', fontsize=12, fontweight='bold')
+        ax.set_title('K-Means Clustering Result (K=3)', fontsize=14, fontweight='bold')
+        ax.legend()
+        ax.grid(linestyle='--', alpha=0.6)
+        
+        # 배경 투명하게
+        fig.patch.set_alpha(0.0)
+        ax.patch.set_alpha(0.0)
+        
+        st.pyplot(fig)
+        plt.close()
+    
+    with col_right:
+        st.subheader("📊 클러스터별 통계")
+        
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10))
+        
+        # 클러스터별 평균 부상자수
+        cluster_means_inj = df.groupby('cluster')['Injuries_1000'].mean()
+        colors_cluster = ['orange', 'blue', 'green']
+        
+        ax1.bar(cluster_means_inj.index, cluster_means_inj.values, color=colors_cluster)
+        ax1.set_xlabel('Cluster', fontweight='bold')
+        ax1.set_ylabel('Avg Injuries', fontweight='bold')
+        ax1.set_title('Average Injury Rate by Cluster (per 1000)', fontweight='bold')
+        ax1.set_xticks([0, 1, 2])
+        ax1.set_xticklabels(['Cluster 0\n(Safe)', 'Cluster 1\n(Caution)', 'Cluster 2\n(Danger)'])
+        ax1.grid(axis='y', linestyle='--', alpha=0.6)
+        
+        # 클러스터별 평균 사고건수
+        cluster_means_acc = df.groupby('cluster')['Accidents_1000'].mean()
+        
+        ax2.bar(cluster_means_acc.index, cluster_means_acc.values, color=colors_cluster)
+        ax2.set_xlabel('Cluster', fontweight='bold')
+        ax2.set_ylabel('Avg Accidents', fontweight='bold')
+        ax2.set_title('Average Accident Rate by Cluster (per 1000)', fontweight='bold')
+        ax2.set_xticks([0, 1, 2])
+        ax2.set_xticklabels(['Cluster 0\n(Safe)', 'Cluster 1\n(Caution)', 'Cluster 2\n(Danger)'])
+        ax2.grid(axis='y', linestyle='--', alpha=0.6)
+        
+        # 배경 투명하게
+        fig.patch.set_alpha(0.0)
+        ax1.patch.set_alpha(0.0)
+        ax2.patch.set_alpha(0.0)
+        
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close()
+    
+    # 상위/하위 지역 표
+    st.markdown("---")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("⚠️ 부상자수 상위 10개 지역")
+        top_injuries = df.nlargest(10, 'Injuries_1000')[['Location', 'Injuries_1000', 'Accidents_1000', 'cluster']]
+        top_injuries['클러스터'] = top_injuries['cluster'].map(lambda x: cluster_info[x]['name'])
+        st.dataframe(
+            top_injuries[['Location', 'Injuries_1000', 'Accidents_1000', '클러스터']].rename(columns={
+                'Location': '지역',
+                'Injuries_1000': '부상자수',
+                'Accidents_1000': '사고건수'
+            }),
+            hide_index=True,
+            use_container_width=True
+        )
+    
+    with col2:
+        st.subheader("✅ 부상자수 하위 10개 지역")
+        bottom_injuries = df.nsmallest(10, 'Injuries_1000')[['Location', 'Injuries_1000', 'Accidents_1000', 'cluster']]
+        bottom_injuries['클러스터'] = bottom_injuries['cluster'].map(lambda x: cluster_info[x]['name'])
+        st.dataframe(
+            bottom_injuries[['Location', 'Injuries_1000', 'Accidents_1000', '클러스터']].rename(columns={
+                'Location': '지역',
+                'Injuries_1000': '부상자수',
+                'Accidents_1000': '사고건수'
+            }),
+            hide_index=True,
+            use_container_width=True
+        )
 
-if __name__ == "__main__":
-    main()
+# 푸터
+st.markdown("---")
+st.info(f"""
+**📌 분석 정보**
+- 클러스터링 알고리즘: K-Means (K=3)
+- 실루엣 스코어: {sil_score:.3f}
+- 분석 지역 수: {len(df)}개
+- 데이터 기준: 2024년 어린이 인구 1000명당 교통사고 지표
+""")
